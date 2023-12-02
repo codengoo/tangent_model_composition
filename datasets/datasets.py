@@ -15,7 +15,8 @@ from torch.utils.data import Dataset
 IMAGENET_NORMALIZE = transforms.Normalize([0.485, 0.456, 0.406],
                                           [0.229, 0.224, 0.225])
 MNIST_NORMALIZE = transforms.Normalize((0.1307,), (0.3081,))
-CIFAR_NORMALIZE = transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
+CIFAR_NORMALIZE = transforms.Normalize(
+    (0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
 
 
 def get_dataset(dataset, root='./data', n_tasks=1, task_split=None):
@@ -27,8 +28,19 @@ def get_dataset(dataset, root='./data', n_tasks=1, task_split=None):
     elif dataset == 'oxfordpets':
         from datasets.OxfordPets import OxfordPets
         transform_train, transform_test = _get_imagenet_transforms()
-        train_set = OxfordPets(root=root, train=True, transform=transform_train)
+        train_set = OxfordPets(root=root, train=True,
+                               transform=transform_train)
         test_set = OxfordPets(root=root, train=False, transform=transform_test)
+    elif dataset == 'cifar10':
+        from datasets.Cifar10 import Cifar10
+        transform_train, transform_test = _get_cifar_transfroms()
+        train_set = Cifar10(root=root, train=True, transform=transform_train)
+        test_set = Cifar10(root=root, train=False, transform=transform_test)
+    elif dataset == 'cifar100':
+        from datasets.Cifar100 import Cifar100
+        transform_train, transform_test = _get_cifar_transfroms()
+        train_set = Cifar100(root=root, train=True, transform=transform_train)
+        test_set = Cifar100(root=root, train=False, transform=transform_test)
     else:
         raise ValueError("No such dataset")
 
@@ -39,24 +51,32 @@ def get_dataset(dataset, root='./data', n_tasks=1, task_split=None):
             train_set = TaskIncrementalDataset(train_set, n_tasks=n_tasks)
         else:
             raise ValueError("No such task split")
-
     return train_set, test_set
+
+
+def _get_cifar_transfroms():
+    transform = transforms.Compose([
+        transforms.ToTensor(),
+        CIFAR_NORMALIZE
+    ])
+
+    return transform, transform
 
 
 def _get_imagenet_transforms(augment=True, input_size=224):
     resize = int(round(input_size * 256 / 224))
     transform_augment = transforms.Compose([
-      transforms.Resize(resize),
-      transforms.RandomCrop(input_size),
-      transforms.RandomHorizontalFlip(),
-      transforms.ToTensor(),
-      IMAGENET_NORMALIZE
+        transforms.Resize(resize),
+        transforms.RandomCrop(input_size),
+        transforms.RandomHorizontalFlip(),
+        transforms.ToTensor(),
+        IMAGENET_NORMALIZE
     ])
     transform_test = transforms.Compose([
-      transforms.Resize(resize),
-      transforms.CenterCrop(input_size),
-      transforms.ToTensor(),
-      IMAGENET_NORMALIZE
+        transforms.Resize(resize),
+        transforms.CenterCrop(input_size),
+        transforms.ToTensor(),
+        IMAGENET_NORMALIZE
     ])
     transform_train = transform_augment if augment else transform_test
     return transform_train, transform_test
@@ -68,7 +88,9 @@ class ClassIncrementalDataset(Dataset):
         self.n_classes_total = len(np.unique(dataset.targets))
         self.current_task = 0
         self.n_tasks = n_tasks
-        self.task_n_classes = [self.n_classes_total // self.n_tasks for _ in range(n_tasks)]
+        self.task_n_classes = [self.n_classes_total //
+                               self.n_tasks for _ in range(n_tasks)]
+
         i = 0
         while sum(self.task_n_classes) != self.n_classes_total:
             self.task_n_classes[i] += 1
@@ -88,10 +110,11 @@ class ClassIncrementalDataset(Dataset):
             _current_task_classes += 1
 
         for i in range(self.n_tasks):
-            assert len([x for x in _class_taskid.values() if x == i]) == self.task_n_classes[i]
+            assert len([x for x in _class_taskid.values() if x == i]
+                       ) == self.task_n_classes[i]
 
         # Stores mapping of indices based on task id
-        self.task_indices = {i:[] for i in range(n_tasks)}
+        self.task_indices = {i: [] for i in range(n_tasks)}
 
         # Map index to task id
         for idx, label in enumerate(dataset.targets):
@@ -99,7 +122,6 @@ class ClassIncrementalDataset(Dataset):
             self.task_indices[task_id].append(idx)
 
         self.return_dataset_idx = False
-
 
     def __len__(self):
         return len(self.task_indices[self.current_task])
@@ -130,7 +152,7 @@ class TaskIncrementalDataset(Dataset):
         self.transform = transform
 
         # Stores mapping of indices based on task id
-        self.task_indices = {i:[] for i in range(n_tasks)}
+        self.task_indices = {i: [] for i in range(n_tasks)}
 
         # Ensure same shuffling each time
         rng = np.random.default_rng(139)
@@ -180,4 +202,3 @@ class TaskIncrementalDataset(Dataset):
                 return data, label, dataset_idx
             else:
                 return data, label
-
