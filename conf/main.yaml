@@ -20,7 +20,7 @@ nesterov: False
 num_classes: -1
 pretrained: True
 seed: 1
-mse_weight: 15
+mse_weight: 25
 val_freq: 5
 save_epochs: -1
 test_mode: False
